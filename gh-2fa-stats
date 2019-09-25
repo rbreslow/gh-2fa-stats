@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+import argparse
+
+from github import Github
+
+parser = argparse.ArgumentParser(
+    description="Get 2FA stats for your GitHub organization."
+)
+parser.add_argument(
+    "-t",
+    "--access-token",
+    nargs="?",
+    help="GitHub personal access token",
+    required=True,
+)
+parser.add_argument(
+    "-o",
+    "--organizations",
+    nargs=argparse.REMAINDER,
+    help="Set of GitHub organizations",
+    required=True,
+)
+
+args = parser.parse_args()
+
+g = Github(args.access_token)
+
+mfa_disabled = set()
+mfa_enabled = set()
+
+for org in args.organizations:
+    print("Processing {}...".format(org))
+
+    mfa_disabled = mfa_disabled | set(
+        map(
+            lambda member: member,
+            g.get_organization(org).get_members(filter_="2fa_disabled"),
+        )
+    )
+    mfa_enabled = mfa_enabled | set(
+        filter(
+            lambda member: member not in mfa_disabled,
+            g.get_organization(org).get_members(),
+        )
+    )
+
+i_mfa_enabled = len(mfa_enabled)
+i_mfa_disabled = len(mfa_disabled)
+
+total_users = i_mfa_disabled + i_mfa_enabled
+
+print(
+    "\nPercentage of Users with 2FA Enabled: {:.2%} ({} out of {} users)\n".format(
+        i_mfa_enabled / total_users, i_mfa_enabled, total_users
+    )
+)
+
+print("Reach out to these folks:\n")
+
+for member in mfa_disabled:
+    if member.name:
+        print(member.name)
+    else:
+        print(member.login)
